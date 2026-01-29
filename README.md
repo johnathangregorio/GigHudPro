@@ -1,1 +1,1112 @@
-# GigHudPro
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GigHud Pro</title>
+    
+    <!-- iOS Web App Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0F1115">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/color/180/us-dollar-circled--v1.png">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0F1115; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .touch-action-manipulation { touch-action: manipulation; }
+        
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(0.8); opacity: 0; }
+            20% { transform: translateY(-20px) scale(1.1); opacity: 1; }
+            80% { transform: translateY(-50px) scale(1); opacity: 1; }
+            100% { transform: translateY(-70px) scale(0.8); opacity: 0; }
+        }
+        .animate-float { animation: floatUp 1.5s ease-out forwards; }
+        
+        @keyframes pulse-custom {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); color: #818cf8; }
+            100% { transform: scale(1); }
+        }
+        .animate-pulse-fast { animation: pulse-custom 0.3s ease-in-out; }
+        
+        @keyframes confetti-fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        .confetti { position: absolute; width: 10px; height: 10px; animation: confetti-fall 3s linear forwards; }
+        
+        @keyframes trophy-pop {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .trophy-enter { animation: trophy-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        /* NEW: Text Glow Animation for Realtime input */
+        @keyframes pulse-glow {
+            0%, 100% { text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+            50% { text-shadow: 0 0 25px rgba(16, 185, 129, 0.8), 0 0 5px rgba(255,255,255,0.5); }
+        }
+        .animate-text-glow { animation: pulse-glow 1.5s infinite; }
+
+        /* Prevent elastic scrolling on iOS */
+        body { overscroll-behavior-y: none; }
+        
+        /* UPDATED: Safe area calculations include the 1.5rem (approx 24px) spacing */
+        .safe-area-top { padding-top: calc(env(safe-area-inset-top) + 1.5rem); }
+        .safe-area-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 1.5rem); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React & ReactDOM via ESM with Babel -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        import { 
+            Plus, Trash2, DollarSign, TrendingUp, History, Bike, Car, ShoppingBag, 
+            Copy, CheckCircle2, Target, Trophy, Calendar, BarChart3, Home, Settings, 
+            ChevronRight, Save, X, ToggleLeft, ToggleRight, Palette, Package, Calculator, 
+            Rocket, ChevronDown, Delete, Sparkles, Zap, List, Flag, Share2, ArrowRight, Pencil, CalendarPlus, Edit3, PlusCircle, Timer, PlayCircle, StopCircle
+        } from 'https://esm.sh/lucide-react@0.344.0';
+
+        const GigHud = () => {
+            // --- ONBOARDING STATE (V7) ---
+            const [hasOnboarded, setHasOnboarded] = useState(() => {
+                return localStorage.getItem('gigHasOnboarded_v7') === 'true';
+            });
+            const [onboardingStep, setOnboardingStep] = useState(1);
+
+            const [amount, setAmount] = useState('');
+            const [selectedApp, setSelectedApp] = useState('DoorDash');
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [copied, setCopied] = useState(false);
+            const [newAppName, setNewAppName] = useState('');
+            
+            // UI States
+            const [showEntry, setShowEntry] = useState(false); 
+            const [showDaySummary, setShowDaySummary] = useState(false);
+            const [editingItem, setEditingItem] = useState(null); 
+            const [showManualAdd, setShowManualAdd] = useState(false);
+            const [manualEntry, setManualEntry] = useState({ date: new Date().toISOString().split('T')[0], amount: '', app: 'DoorDash' });
+            
+            // Direct Edit State
+            const [quickEdit, setQuickEdit] = useState(null); 
+
+            // Animation & Motivation States
+            const [floatAnim, setFloatAnim] = useState(null); 
+            const [isPulsing, setIsPulsing] = useState(false);
+            const [celebration, setCelebration] = useState(null); 
+            const [motivation, setMotivation] = useState("Let's get this bread! 🍞");
+
+            // --- SHIFT TIMER STATE ---
+            const [shiftStartTime, setShiftStartTime] = useState(() => localStorage.getItem('gigShiftStart'));
+            const [currentTime, setCurrentTime] = useState(Date.now());
+
+            // --- STATE CONFIGURATION (V7) ---
+
+            const [goalConfig, setGoalConfig] = useState(() => {
+                const saved = localStorage.getItem('gigGoalConfig_v7');
+                const defaultGoals = { 
+                    daily: { weekday: '150', saturday: '200', sunday: '180' },
+                    stretch: { daily: '250', weekly: '1500' },
+                    weekly: '1000',
+                    monthly: '4000',
+                    milestones: { active: true, values: [550, 700, 800, 1000] }
+                };
+                if (!saved) return defaultGoals;
+                try {
+                    const parsed = JSON.parse(saved);
+                    return { 
+                        ...defaultGoals, 
+                        ...parsed, 
+                        daily: { ...defaultGoals.daily, ...parsed.daily },
+                        stretch: { ...defaultGoals.stretch, ...parsed.stretch },
+                        milestones: { ...defaultGoals.milestones, ...(parsed.milestones || {}) } 
+                    };
+                } catch (e) {
+                    return defaultGoals;
+                }
+            });
+
+            const [myApps, setMyApps] = useState(() => {
+                const saved = localStorage.getItem('gigAppsConfig_v7');
+                const defaultApps = [
+                    { id: 'dd', name: 'DoorDash', color: '#FF3008', active: true, iconType: 'bike' },
+                    { id: 'ue', name: 'UberEats', color: '#06C167', active: true, iconType: 'car' },
+                    { id: 'gh', name: 'GrubHub', color: '#FD5000', active: true, iconType: 'bag' },
+                    { id: 'ic', name: 'Instacart', color: '#F05D28', active: true, iconType: 'bag' },
+                    { id: 'sp', name: 'Spark', color: '#0071DC', active: false, iconType: 'box' },
+                    { id: 'af', name: 'Amazon Flex', color: '#FF9900', active: false, iconType: 'box' },
+                    { id: 'sh', name: 'Shipt', color: '#9333EA', active: false, iconType: 'bag' },
+                    { id: 'gp', name: 'Gopuff', color: '#00A3E0', active: false, iconType: 'bag' },
+                    { id: 'ly', name: 'Lyft', color: '#FF00BF', active: false, iconType: 'car' },
+                    { id: 'rd', name: 'Roadie', color: '#EF4444', active: false, iconType: 'box' },
+                ];
+                return saved ? JSON.parse(saved) : defaultApps;
+            });
+
+            const [deliveries, setDeliveries] = useState(() => {
+                const saved = localStorage.getItem('gigDeliveries');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            // --- PERSISTENCE ---
+
+            useEffect(() => { localStorage.setItem('gigDeliveries', JSON.stringify(deliveries)); }, [deliveries]);
+            useEffect(() => { localStorage.setItem('gigGoalConfig_v7', JSON.stringify(goalConfig)); }, [goalConfig]);
+            useEffect(() => { localStorage.setItem('gigAppsConfig_v7', JSON.stringify(myApps)); }, [myApps]);
+            useEffect(() => { localStorage.setItem('gigHasOnboarded_v7', hasOnboarded); }, [hasOnboarded]);
+            
+            // Shift Timer Persistence
+            useEffect(() => {
+                if (shiftStartTime) localStorage.setItem('gigShiftStart', shiftStartTime);
+                else localStorage.removeItem('gigShiftStart');
+            }, [shiftStartTime]);
+
+            // Timer Interval
+            useEffect(() => {
+                if (shiftStartTime) {
+                    const interval = setInterval(() => setCurrentTime(Date.now()), 1000);
+                    return () => clearInterval(interval);
+                }
+            }, [shiftStartTime]);
+
+            // --- HELPER FUNCTIONS ---
+
+            const isToday = (dateString) => {
+                const d = new Date(dateString);
+                const today = new Date();
+                return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+            };
+
+            const getWeekStart = () => {
+                const today = new Date();
+                const day = today.getDay();
+                const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                const monday = new Date(today.setDate(diff));
+                monday.setHours(0,0,0,0);
+                return monday;
+            };
+
+            const isThisWeek = (dateString) => { return new Date(dateString) >= getWeekStart(); };
+            const isThisMonth = (dateString) => {
+                const d = new Date(dateString);
+                const today = new Date();
+                return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+            };
+
+            const getTodaysGoal = () => {
+                const day = new Date().getDay(); 
+                if (day === 0) return parseFloat(goalConfig.daily.sunday || 0);
+                if (day === 6) return parseFloat(goalConfig.daily.saturday || 0);
+                return parseFloat(goalConfig.daily.weekday || 0);
+            };
+
+            // --- STATS LOGIC ---
+            // dailyTotal now excludes manual weekly adjustments
+            const dailyDeliveries = deliveries.filter(d => isToday(d.timestamp) && !d.isWeeklyAdjustment);
+            const dailyTotal = dailyDeliveries.reduce((acc, curr) => acc + curr.amount, 0);
+            
+            // NEW: Live Total Logic (Updates as you type)
+            const currentInputVal = amount ? parseInt(amount) / 100 : 0;
+            const liveTotal = dailyTotal + currentInputVal;
+            
+            // weeklyTotal is absolute total for the week
+            const weeklyTotal = deliveries.filter(d => isThisWeek(d.timestamp)).reduce((acc, curr) => acc + curr.amount, 0);
+            
+            // pastWeekTotal (Banked) = Total - Daily (Basically previous days + manual adjustments)
+            const pastWeekTotal = weeklyTotal - dailyTotal;
+            
+            const monthlyTotal = deliveries.filter(d => isThisMonth(d.timestamp)).reduce((acc, curr) => acc + curr.amount, 0);
+            
+            // --- SHIFT LOGIC ---
+            const shiftEarnings = shiftStartTime ? deliveries
+                .filter(d => new Date(d.timestamp) > new Date(shiftStartTime))
+                .reduce((acc, curr) => acc + curr.amount, 0) : 0;
+            
+            const getShiftDuration = () => {
+                if (!shiftStartTime) return "00:00:00";
+                const diff = currentTime - new Date(shiftStartTime).getTime();
+                const h = Math.floor(diff / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                const s = Math.floor((diff % 60000) / 1000);
+                return `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            };
+
+            const getHourlyRate = () => {
+                if (!shiftStartTime) return "0.00";
+                const hours = (currentTime - new Date(shiftStartTime).getTime()) / 3600000;
+                if (hours < 0.05) return "0.00"; // Too soon
+                return (shiftEarnings / hours).toFixed(2);
+            };
+
+            // --- GOAL TRACKING REF ---
+            const prevTotalRef = useRef(dailyTotal);
+
+            useEffect(() => {
+                const prev = prevTotalRef.current;
+                const current = dailyTotal;
+                const dailyGoal = getTodaysGoal();
+                const stretchGoal = parseFloat(goalConfig.stretch?.daily || 0);
+
+                if (prev < dailyGoal && current >= dailyGoal) {
+                    setCelebration('base');
+                    setMotivation("GOAL MET! You're a legend! 🏆");
+                    setTimeout(() => setCelebration(null), 3000);
+                } else if (prev < stretchGoal && current >= stretchGoal) {
+                    setCelebration('stretch');
+                    setMotivation("STRETCH GOAL SMASHED! 🚀");
+                    setTimeout(() => setCelebration(null), 3000);
+                }
+                prevTotalRef.current = current;
+            }, [dailyTotal, goalConfig]);
+
+            // --- ICONS MAPPING ---
+            const getIcon = (type, size = 18) => {
+                switch(type) {
+                case 'bike': return React.createElement(Bike, { size });
+                case 'car': return React.createElement(Car, { size });
+                case 'bag': return React.createElement(ShoppingBag, { size });
+                case 'box': return React.createElement(Package, { size });
+                default: return React.createElement(ShoppingBag, { size });
+                }
+            };
+
+            // --- ACTIONS ---
+            const handleNumPress = (val) => {
+                if (val === 'back') { 
+                    setAmount(prev => prev.slice(0, -1)); 
+                    return; 
+                }
+                // Safety cap
+                if (amount.length > 7) return;
+                setAmount(prev => prev + val);
+            };
+
+            const handleAdd = (e) => {
+                if (e) e.preventDefault();
+                if (!amount) return;
+                
+                // ATM Logic: 550 -> 5.50
+                const val = parseInt(amount) / 100;
+
+                setFloatAnim({ amount: val, id: Date.now() });
+                setIsPulsing(true);
+                setMotivation(getMotivation());
+                setTimeout(() => setFloatAnim(null), 2000); 
+                setTimeout(() => setIsPulsing(false), 300); 
+                
+                const newDelivery = { 
+                    id: Date.now(), 
+                    app: selectedApp, 
+                    amount: val, 
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+                    timestamp: new Date().toISOString() 
+                };
+                
+                setDeliveries([newDelivery, ...deliveries]);
+                setAmount('');
+                setShowEntry(false); 
+            };
+
+            const handleAppSelect = (appName) => {
+                setSelectedApp(appName);
+                setShowEntry(true);
+            };
+
+            const handleNavAdd = () => {
+                setActiveTab('dashboard');
+                setShowEntry(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            const toggleShift = () => {
+                if (shiftStartTime) {
+                    // Ending shift
+                    handleFinishShift();
+                    setShiftStartTime(null);
+                } else {
+                    // Starting shift
+                    setShiftStartTime(new Date().toISOString());
+                }
+            };
+
+            const deleteDelivery = (id) => { setDeliveries(deliveries.filter(d => d.id !== id)); };
+            const handleEditSave = () => {
+                if (!editingItem || !editingItem.amount) return;
+                setDeliveries(prev => prev.map(d => d.id === editingItem.id ? { ...d, amount: parseFloat(editingItem.amount), app: editingItem.app } : d));
+                setEditingItem(null);
+            };
+
+            const handleManualAddSubmit = (e) => {
+                e.preventDefault();
+                if (!manualEntry.amount || !manualEntry.date) return;
+                const [year, month, day] = manualEntry.date.split('-').map(Number);
+                const dateObj = new Date(year, month - 1, day, 12, 0, 0);
+                const newDelivery = { id: Date.now(), app: manualEntry.app, amount: parseFloat(manualEntry.amount), time: "Manual Entry", timestamp: dateObj.toISOString() };
+                setDeliveries([newDelivery, ...deliveries]);
+                setManualEntry({ date: new Date().toISOString().split('T')[0], amount: '', app: activeApps[0]?.name || 'DoorDash' });
+                setShowManualAdd(false);
+            };
+
+            // --- QUICK EDIT HANDLERS ---
+            const handleQuickEditClick = (type, value) => {
+                let label = '';
+                if(type === 'goal') label = 'Update Daily Goal';
+                if(type === 'total') label = 'Adjust Daily Total';
+                if(type === 'week') label = 'Adjust Week Total (Past Days)';
+                setQuickEdit({ type, value, label, newValue: '' });
+            };
+
+            const handleQuickEditSave = () => {
+                if (!quickEdit) return;
+                const newVal = parseFloat(quickEdit.newValue);
+                if (isNaN(newVal)) return;
+
+                if (quickEdit.type === 'goal') {
+                    const day = new Date().getDay(); 
+                    if (day === 0) updateGoal('daily', 'sunday', newVal);
+                    else if (day === 6) updateGoal('daily', 'saturday', newVal);
+                    else updateGoal('daily', 'weekday', newVal);
+                } else if (quickEdit.type === 'total') {
+                    const diff = newVal - quickEdit.value;
+                    if (diff !== 0) {
+                        const adjustment = {
+                            id: Date.now(),
+                            app: 'Manual Adjustment',
+                            amount: diff,
+                            time: 'Correction',
+                            timestamp: new Date().toISOString()
+                        };
+                        setDeliveries([adjustment, ...deliveries]);
+                    }
+                } else if (quickEdit.type === 'week') {
+                    // Adjust weekly total without affecting today's total
+                    // We calculate the difference between NEW desired past total and CURRENT past total
+                    const diff = newVal - quickEdit.value;
+                    if (diff !== 0) {
+                        const adjustment = {
+                            id: Date.now(),
+                            app: 'Week Adjustment',
+                            amount: diff,
+                            time: 'Correction',
+                            timestamp: new Date().toISOString(),
+                            isWeeklyAdjustment: true // FLAG: This makes it ignored by dailyTotal
+                        };
+                        setDeliveries([adjustment, ...deliveries]);
+                    }
+                }
+                setQuickEdit(null);
+            };
+
+            const handleExport = () => {
+                const exportText = deliveries.map(d => `${new Date(d.timestamp).toLocaleDateString()}\t${d.time}\t${d.app}\t${d.amount}`).join('\n');
+                const textArea = document.createElement("textarea");
+                textArea.value = exportText;
+                textArea.style.position = "fixed"; textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus(); textArea.select();
+                try {
+                    if (document.execCommand('copy')) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+                } catch (err) { console.error('Fallback copy failed', err); }
+                document.body.removeChild(textArea);
+            };
+
+            const handleFinishShift = () => { setShowDaySummary(true); setCelebration('base'); setTimeout(() => setCelebration(null), 4000); };
+            const toggleApp = (id) => { setMyApps(myApps.map(app => app.id === id ? { ...app, active: !app.active } : app)); };
+            const updateAppColor = (id, newColor) => { setMyApps(myApps.map(app => app.id === id ? { ...app, color: newColor } : app)); };
+            const addCustomApp = (e) => {
+                e.preventDefault();
+                if (!newAppName.trim()) return;
+                const colors = ['#FF3008', '#06C167', '#FC4E06', '#F05D28', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                setMyApps([...myApps, { id: `custom-${Date.now()}`, name: newAppName, color: randomColor, active: true, iconType: 'bag' }]);
+                setNewAppName('');
+            };
+            const deleteApp = (id) => { if (confirm('Delete app?')) setMyApps(myApps.filter(app => app.id !== id)); };
+            
+            const updateGoal = (category, key, value) => {
+                if (category === 'daily') setGoalConfig(prev => ({...prev, daily: {...prev.daily, [key]: value}}));
+                else if (category === 'stretch') setGoalConfig(prev => ({...prev, stretch: {...prev.stretch, [key]: value}}));
+                else if (category === 'macro') setGoalConfig(prev => ({...prev, [key]: value})); 
+                else setGoalConfig(prev => ({...prev, [key]: value}));
+            };
+
+            const toggleMilestones = () => {
+                setGoalConfig(prev => ({
+                    ...prev,
+                    milestones: { ...prev.milestones, active: !prev.milestones.active }
+                }));
+            };
+
+            const updateMilestone = (index, value) => {
+                const newValues = [...goalConfig.milestones.values];
+                newValues[index] = parseFloat(value) || 0;
+                setGoalConfig(prev => ({
+                    ...prev,
+                    milestones: { ...prev.milestones, values: newValues }
+                }));
+            };
+
+            // --- MOTIVATION ---
+            const quotes = [
+                "Money machine go brrr 💸", "Secure the bag 💰", "You're crushing it! 🔥", 
+                "Road warrior mode: ON 🚗", "Cha-ching! 🤑", "Every mile counts! 🛣️", 
+                "Building that empire 🏰", "Stay safe, stay paid 🛡️", "Don't stop now! 🚀", "Easy money! 💨"
+            ];
+            const getMotivation = () => quotes[Math.floor(Math.random() * quotes.length)];
+            
+            // --- ONBOARDING COMPONENT ---
+            if (!hasOnboarded) {
+                return (
+                    <div className="min-h-screen bg-[#0F1115] text-white font-sans flex flex-col justify-center px-6 safe-area-top safe-area-bottom">
+                        <div className="max-w-md mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex justify-center gap-2 mb-8">
+                                {[1, 2, 3].map(step => (
+                                    <div key={step} className={`h-2 rounded-full transition-all duration-300 ${step <= onboardingStep ? 'w-8 bg-indigo-500' : 'w-2 bg-slate-800'}`} />
+                                ))}
+                            </div>
+                            <div className="space-y-6">
+                                {onboardingStep === 1 && (
+                                    <>
+                                        <div className="text-center space-y-2"><h1 className="text-3xl font-black tracking-tighter">Welcome to GigHud.</h1><p className="text-slate-400">Which apps are you running?</p></div>
+                                        <div className="bg-[#181A20] rounded-2xl border border-white/5 overflow-hidden divide-y divide-white/5 max-h-96 overflow-y-auto">
+                                            {myApps.map(app => (
+                                                <div key={app.id} onClick={() => toggleApp(app.id)} className="p-4 flex items-center justify-between cursor-pointer active:bg-white/5 transition-colors">
+                                                    <div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center`} style={{ backgroundColor: `${app.color}33`, color: app.color }}>{getIcon(app.iconType)}</div><span className={`font-bold ${app.active ? 'text-white' : 'text-slate-500'}`}>{app.name}</span></div>
+                                                    {app.active ? <ToggleRight size={24} className="text-emerald-400"/> : <ToggleLeft size={24} className="text-slate-600"/>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2"><input type="text" placeholder="Add Custom App..." value={newAppName} onChange={e => setNewAppName(e.target.value)} className="flex-1 bg-[#181A20] rounded-xl px-4 py-3 text-sm outline-none border border-white/5 focus:border-indigo-500" /><button onClick={addCustomApp} className="bg-slate-800 px-4 rounded-xl"><Plus size={18} /></button></div>
+                                        <button onClick={() => setOnboardingStep(2)} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl flex items-center justify-center gap-2">Next <ArrowRight size={18}/></button>
+                                    </>
+                                )}
+                                {onboardingStep === 2 && (
+                                    <>
+                                        <div className="text-center space-y-2"><h1 className="text-3xl font-black tracking-tighter">Set Your Targets.</h1><p className="text-slate-400">How much do you want to make?</p></div>
+                                        <div className="space-y-4">
+                                            <div className="bg-[#181A20] p-4 rounded-2xl border border-white/5 space-y-4">
+                                                <div className="flex justify-between items-center"><span className="font-bold text-slate-300">Weekday (Mon-Fri)</span><div className="relative w-24"><span className="absolute left-3 top-2.5 text-slate-500 text-xs">$</span><input type="number" value={goalConfig.daily.weekday} onChange={e => updateGoal('daily', 'weekday', e.target.value)} className="w-full bg-[#0F1115] rounded-lg py-2 pl-6 pr-3 text-right font-bold outline-none border border-white/5 focus:border-indigo-500" /></div></div>
+                                                <div className="flex justify-between items-center"><span className="font-bold text-slate-300">Weekend (Sat-Sun)</span><div className="relative w-24"><span className="absolute left-3 top-2.5 text-slate-500 text-xs">$</span><input type="number" value={goalConfig.daily.saturday} onChange={e => { updateGoal('daily', 'saturday', e.target.value); updateGoal('daily', 'sunday', e.target.value); }} className="w-full bg-[#0F1115] rounded-lg py-2 pl-6 pr-3 text-right font-bold outline-none border border-white/5 focus:border-indigo-500" /></div></div>
+                                            </div>
+                                            <div className="bg-[#181A20] p-4 rounded-2xl border border-white/5 space-y-2">
+                                                <div className="flex justify-between items-center"><div><span className="block font-bold text-purple-400 flex items-center gap-2"><Rocket size={14}/> Stretch Goal</span><span className="text-xs text-slate-500">Aim for the stars</span></div><div className="relative w-24"><span className="absolute left-3 top-2.5 text-slate-500 text-xs">$</span><input type="number" value={goalConfig.stretch.daily} onChange={e => updateGoal('stretch', 'daily', e.target.value)} className="w-full bg-[#0F1115] rounded-lg py-2 pl-6 pr-3 text-right font-bold outline-none border border-purple-500/30 focus:border-purple-500" /></div></div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4"><button onClick={() => setOnboardingStep(1)} className="px-6 py-4 bg-slate-800 font-bold rounded-xl">Back</button><button onClick={() => setHasOnboarded(true)} className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black rounded-xl flex items-center justify-center gap-2">Let's Go! <Rocket size={18}/></button></div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- DERIVED STATS FOR DASHBOARD ---
+            const activeApps = myApps.filter(a => a.active);
+            const currentDailyGoal = getTodaysGoal();
+            const dailyStretch = parseFloat(goalConfig.stretch?.daily || 0) || (currentDailyGoal * 1.5);
+            
+            // UPDATED: Use liveTotal for visual stats
+            // (Calculated above in STATS LOGIC)
+            const activeTarget = liveTotal >= currentDailyGoal ? dailyStretch : currentDailyGoal;
+            const isStretching = liveTotal >= currentDailyGoal;
+            
+            // FANCY UPDATE: Separate Base % from Live % for Ghost Bar
+            const basePercent = Math.min(100, (dailyTotal / (activeTarget || 1)) * 100);
+            const livePercent = Math.min(100, (liveTotal / (activeTarget || 1)) * 100);
+            
+            const remaining = Math.max(0, activeTarget - liveTotal);
+            
+            const daysPassed = (new Date().getDay() + 6) % 7 + 1; 
+            const weeklyProjection = daysPassed > 0 ? (weeklyTotal / daysPassed) * 7 : 0;
+            
+            // UPDATED: Daily Need updates in real-time
+            const dailyNeed = Math.max(0, currentDailyGoal - liveTotal);
+            const milestones = goalConfig.milestones?.values || [550, 700, 800, 1000];
+            const showMilestones = goalConfig.milestones?.active ?? true;
+
+            const getTopApp = () => {
+                if (dailyDeliveries.length === 0) return { name: 'N/A', amount: 0 };
+                const totals = {};
+                dailyDeliveries.forEach(d => { totals[d.app] = (totals[d.app] || 0) + d.amount; });
+                const top = Object.entries(totals).sort((a,b) => b[1] - a[1])[0];
+                return { name: top[0], amount: top[1] };
+            };
+            const topApp = getTopApp();
+            const avgOrder = dailyDeliveries.length > 0 ? dailyTotal / dailyDeliveries.length : 0;
+
+            // --- HISTORY GROUPING LOGIC ---
+            const historyByDate = deliveries.reduce((groups, delivery) => {
+                const date = new Date(delivery.timestamp);
+                const dateStr = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                // Check if it's Today or Yesterday for friendlier headers
+                const now = new Date();
+                const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+                
+                let displayDate = dateStr;
+                if (date.toDateString() === now.toDateString()) displayDate = "Today";
+                else if (date.toDateString() === yesterday.toDateString()) displayDate = "Yesterday";
+
+                if (!groups[displayDate]) {
+                    groups[displayDate] = { total: 0, items: [] };
+                }
+                groups[displayDate].items.push(delivery);
+                groups[displayDate].total += delivery.amount;
+                return groups;
+            }, {});
+
+            return (
+                <div className="min-h-screen bg-[#0F1115] text-white font-sans pb-24 selection:bg-indigo-500/30 overflow-hidden relative">
+                
+                {/* --- CONFETTI OVERLAY --- */}
+                {celebration && (
+                    <div className="fixed inset-0 z-[60] pointer-events-none flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-500">
+                        {Array.from({ length: 50 }).map((_, i) => (
+                            <div key={i} className="confetti" style={{ left: `${Math.random() * 100}vw`, top: `-20px`, backgroundColor: ['#ff0', '#f0f', '#0ff', '#0f0'][Math.floor(Math.random() * 4)], animationDelay: `${Math.random() * 2}s`, animationDuration: `${2 + Math.random() * 2}s` }} />
+                        ))}
+                        {!showDaySummary && (
+                            <div className="trophy-enter bg-[#181A20] p-8 rounded-3xl border border-white/10 shadow-2xl flex flex-col items-center text-center">
+                                <Trophy size={80} className={`mb-4 ${celebration === 'stretch' ? 'text-purple-400' : 'text-yellow-400'}`} />
+                                <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase mb-1">{celebration === 'stretch' ? 'Stretch Met!' : 'Goal Met!'}</h2>
+                                <div className="mt-4 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500">${dailyTotal.toFixed(2)}</div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* --- EDIT MODAL --- */}
+                {editingItem && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#181A20] w-full max-w-xs rounded-2xl border border-white/10 shadow-2xl overflow-hidden p-4 space-y-4">
+                            <h3 className="text-center font-bold text-lg">Edit Order</h3>
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-500 font-bold uppercase">Amount</label>
+                                <input 
+                                    type="number" 
+                                    value={editingItem.amount} 
+                                    onChange={e => setEditingItem({...editingItem, amount: e.target.value})}
+                                    className="w-full bg-[#0F1115] rounded-xl px-4 py-3 font-bold text-white border border-white/10 focus:border-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-500 font-bold uppercase">App</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {activeApps.map(app => (
+                                        <button 
+                                            key={app.id}
+                                            onClick={() => setEditingItem({...editingItem, app: app.name})}
+                                            className={`py-2 rounded-lg text-xs font-bold border ${editingItem.app === app.name ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-transparent border-white/10 text-slate-400'}`}
+                                        >
+                                            {app.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                                <button onClick={() => setEditingItem(null)} className="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold">Cancel</button>
+                                <button onClick={handleEditSave} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- QUICK EDIT MODAL --- */}
+                {quickEdit && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#181A20] w-full max-w-xs rounded-2xl border border-white/10 shadow-2xl overflow-hidden p-4 space-y-4">
+                            <h3 className="text-center font-bold text-lg">{quickEdit.label}</h3>
+                            <div className="space-y-2">
+                                <div className="relative">
+                                    <span className="absolute left-4 top-3 text-slate-500">$</span>
+                                    <input 
+                                        type="number" 
+                                        value={quickEdit.newValue} 
+                                        placeholder={quickEdit.value.toString()} 
+                                        onChange={e => setQuickEdit({...quickEdit, newValue: e.target.value})}
+                                        className="w-full bg-[#0F1115] rounded-xl pl-8 pr-4 py-3 font-bold text-white border border-white/10 focus:border-indigo-500 outline-none text-xl placeholder-slate-600"
+                                        autoFocus
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-500 text-center">
+                                    {quickEdit.type === 'goal' 
+                                        ? "Updates your goal setting for today." 
+                                        : quickEdit.type === 'week' ? "Adjusts your past weekly earnings (doesn't affect today)."
+                                        : "Adds a correction entry to match this total."}
+                                </p>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                                <button onClick={() => setQuickEdit(null)} className="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold">Cancel</button>
+                                <button onClick={handleQuickEditSave} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Update</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- MANUAL ADD MODAL --- */}
+                {showManualAdd && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#181A20] w-full max-w-xs rounded-2xl border border-white/10 shadow-2xl overflow-hidden p-4 space-y-4">
+                            <h3 className="text-center font-bold text-lg">Add Past Earnings</h3>
+                            <form onSubmit={handleManualAddSubmit} className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs text-slate-500 font-bold uppercase">Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={manualEntry.date} 
+                                        onChange={e => setManualEntry({...manualEntry, date: e.target.value})}
+                                        className="w-full bg-[#0F1115] rounded-xl px-4 py-3 font-bold text-white border border-white/10 focus:border-indigo-500 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs text-slate-500 font-bold uppercase">Total Amount</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3 text-slate-500">$</span>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            value={manualEntry.amount} 
+                                            onChange={e => setManualEntry({...manualEntry, amount: e.target.value})}
+                                            className="w-full bg-[#0F1115] rounded-xl pl-8 pr-4 py-3 font-bold text-white border border-white/10 focus:border-indigo-500 outline-none"
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs text-slate-500 font-bold uppercase">App</label>
+                                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                                        {activeApps.map(app => (
+                                            <button 
+                                                type="button"
+                                                key={app.id}
+                                                onClick={() => setManualEntry({...manualEntry, app: app.name})}
+                                                className={`py-2 rounded-lg text-xs font-bold border ${manualEntry.app === app.name ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-transparent border-white/10 text-slate-400'}`}
+                                            >
+                                                {app.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 pt-2">
+                                    <button type="button" onClick={() => setShowManualAdd(false)} className="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold">Cancel</button>
+                                    <button type="submit" className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Add</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- DAY SUMMARY MODAL --- */}
+                {showDaySummary && (
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300 p-4">
+                        <div className="trophy-enter bg-[#181A20] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
+                            <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-6 text-center relative">
+                                <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-1 relative z-10">Shift Complete</h2>
+                                <div className="mt-6 mb-2">
+                                    <div className="text-5xl font-black text-white tracking-tighter drop-shadow-xl">${dailyTotal.toFixed(2)}</div>
+                                    {shiftStartTime ? (
+                                        <div className="inline-block px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold mt-2 border border-indigo-500/30">
+                                            {getShiftDuration()} • ${getHourlyRate()}/hr
+                                        </div>
+                                    ) : (
+                                        <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold mt-2 ${dailyTotal >= currentDailyGoal ? 'bg-emerald-500/20 text-emerald-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
+                                            {dailyTotal >= currentDailyGoal ? 'Goal Met! 🎯' : 'Keep Pushing'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                                        <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Top App</div>
+                                        <div className="text-lg font-bold text-white mt-1">{topApp.name}</div>
+                                        <div className="text-xs text-slate-400">${topApp.amount.toFixed(0)}</div>
+                                    </div>
+                                    <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                                        <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Avg / Order</div>
+                                        <div className="text-lg font-bold text-white mt-1">${avgOrder.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowDaySummary(false)} className="w-full py-3 bg-slate-800 text-white font-bold rounded-xl">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Top Header */}
+                <div className="px-4 sm:px-6 pb-4 flex justify-between items-center bg-[#0F1115] sticky top-0 z-30 border-b border-white/5 safe-area-top">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <TrendingUp size={18} className="text-white" />
+                        </div>
+                        <span className="font-bold text-lg tracking-tight">GigHud<span className="text-indigo-500">Pro</span></span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                        {activeTab === 'dashboard' && (
+                            <div className={`text-xs font-bold px-3 py-1.5 rounded-full border whitespace-nowrap flex items-center gap-2 transition-colors ${isStretching ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-slate-800/50 text-slate-400 border-white/5'}`}>
+                                {isStretching && <Rocket size={12} className="animate-bounce" />}
+                                Target: ${activeTarget}
+                            </div>
+                        )}
+                        <button onClick={() => setActiveTab('settings')} className="p-2 text-slate-400 hover:text-white transition-colors">
+                            <Settings size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* --- DASHBOARD TAB --- */}
+                {activeTab === 'dashboard' && (
+                    <div className="px-3 sm:px-4 pt-4 pb-24 max-w-6xl mx-auto animate-in fade-in duration-500">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 items-start">
+                            {/* LEFT COLUMN */}
+                            <div className="space-y-4 sm:space-y-6">
+                                
+                                {/* SHIFT HUD (New) */}
+                                <div className="flex items-center justify-between p-1 bg-white/5 rounded-2xl border border-white/5">
+                                    {shiftStartTime ? (
+                                        <>
+                                            <div className="flex items-center gap-3 px-3">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                <div>
+                                                    <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Live Shift</div>
+                                                    <div className="text-sm font-mono font-bold text-white tabular-nums">{getShiftDuration()}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-right">
+                                                    <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Rate</div>
+                                                    <div className="text-sm font-bold text-emerald-400 tabular-nums">${getHourlyRate()}/hr</div>
+                                                </div>
+                                                <button onClick={toggleShift} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 p-2.5 rounded-xl transition-colors">
+                                                    <StopCircle size={20} />
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <button onClick={toggleShift} className="w-full py-3 flex items-center justify-center gap-2 text-slate-300 font-bold text-xs uppercase tracking-widest hover:text-white transition-colors">
+                                            <PlayCircle size={16} className="text-emerald-400" /> Start Shift Timer
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Quick Add (At Top) */}
+                                <div className={`bg-[#181A20] rounded-3xl border border-white/5 shadow-lg overflow-hidden transition-all duration-300 ${showEntry ? 'ring-2 ring-indigo-500/50' : ''}`}>
+                                    <div className="flex p-2 gap-1 mb-0 overflow-x-auto scrollbar-hide snap-x bg-[#0F1115]/50 border-b border-white/5">
+                                        {activeApps.map((app) => (
+                                        <button key={app.id} onClick={() => handleAppSelect(app.name)} className={`flex-1 min-w-[70px] py-2 rounded-xl flex flex-col items-center justify-center transition-all duration-200 snap-start ${selectedApp === app.name ? `bg-[${app.color}]/20 border border-[${app.color}]` : 'bg-transparent hover:bg-white/5 opacity-50'}`} style={{ backgroundColor: selectedApp === app.name ? `${app.color}33` : 'transparent', borderColor: selectedApp === app.name ? app.color : 'transparent' }}>
+                                            <div style={{ color: selectedApp === app.name ? app.color : '#94a3b8' }}>{getIcon(app.iconType, 16)}</div>
+                                            <span className={`text-[10px] mt-0.5 font-bold truncate max-w-[60px] ${selectedApp === app.name ? 'text-white' : 'text-slate-500'}`}>{app.name}</span>
+                                        </button>
+                                        ))}
+                                    </div>
+                                    
+                                    {/* Expandable Entry Section */}
+                                    <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showEntry ? 'max-h-[500px] opacity-100 border-t border-white/5' : 'max-h-0 opacity-0'}`}>
+                                        
+                                        {/* Display Area [UPDATED] */}
+                                        <div className="relative flex flex-col items-end justify-center px-6 py-4 bg-[#181A20]">
+                                            <span className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Enter Amount</span>
+                                            
+                                            {/* ATM Style Formatting */}
+                                            <div className={`text-4xl font-mono font-bold tracking-tight ${amount ? 'text-white' : 'text-slate-600'}`}>
+                                                {amount 
+                                                    ? (parseInt(amount) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) 
+                                                    : '$0.00'}
+                                                <span className="animate-pulse text-indigo-500 ml-0.5">|</span>
+                                            </div>
+
+                                            <button onClick={() => setShowEntry(false)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 p-2 hover:bg-white/5 rounded-full">
+                                                <ChevronDown size={20} />
+                                            </button>
+                                        </div>
+
+                                        {/* Keypad [UPDATED] */}
+                                        <div className="grid grid-cols-3 gap-0.5 bg-white/5 p-0.5">
+                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                                                <button key={num} onClick={() => handleNumPress(num.toString())} className="h-14 bg-[#181A20] hover:bg-white/10 active:bg-indigo-600 active:text-white text-2xl font-bold text-slate-200 transition-colors touch-action-manipulation">
+                                                    {num}
+                                                </button>
+                                            ))}
+                                            {/* 00 Button for speed */}
+                                            <button onClick={() => handleNumPress('00')} className="h-14 bg-[#181A20] hover:bg-white/10 active:bg-indigo-600 active:text-white text-xl font-bold text-slate-400 hover:text-white transition-colors touch-action-manipulation tracking-tighter">
+                                                00
+                                            </button>
+                                            
+                                            <button onClick={() => handleNumPress('0')} className="h-14 bg-[#181A20] hover:bg-white/10 active:bg-indigo-600 active:text-white text-2xl font-bold text-slate-200 transition-colors touch-action-manipulation">
+                                                0
+                                            </button>
+
+                                            <button onClick={() => handleNumPress('back')} className="h-14 bg-[#181A20] hover:bg-red-500/20 active:bg-red-500 text-slate-400 hover:text-red-400 active:text-white flex items-center justify-center transition-colors touch-action-manipulation">
+                                                <Delete size={24} />
+                                            </button>
+                                        </div>
+                                        <button onClick={handleAdd} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-colors touch-action-manipulation"><Plus size={24} /> Add Order</button>
+                                    </div>
+                                </div>
+
+                                {/* Main Stats Card */}
+                                <div className="relative overflow-visible"> 
+                                    <div className="relative overflow-hidden bg-[#181A20] rounded-3xl p-5 sm:p-6 border border-white/5 shadow-2xl group z-10">
+                                        <div className={`absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none transition-colors duration-1000 ${isStretching ? 'bg-purple-500/20' : 'bg-indigo-500/10'}`}></div>
+                                        <div className={`absolute bottom-0 left-0 w-24 h-24 blur-3xl rounded-full -ml-10 -mb-10 pointer-events-none transition-colors duration-1000 ${isStretching ? 'bg-pink-500/20' : 'bg-emerald-500/10'}`}></div>
+                                        <div className="relative z-10 flex flex-col items-center justify-center py-2 sm:py-4">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border shadow-[0_0_10px_rgba(0,0,0,0.2)] transition-colors ${isStretching ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>{isStretching ? 'Stretch Goal Active 🚀' : "Today's Earnings"}</span>
+                                            </div>
+                                            
+                                            {/* Clickable Main Total [UPDATED] - Uses liveTotal */}
+                                            <div 
+                                                onClick={() => handleQuickEditClick('total', dailyTotal)}
+                                                className={`text-5xl sm:text-6xl font-black tracking-tighter mb-1 filter drop-shadow-2xl transition-all duration-300 cursor-pointer border-b-2 border-dashed border-white/10 hover:border-white/30 
+                                                ${amount ? 'text-emerald-400 animate-text-glow scale-105' : 'text-white'} 
+                                                ${isPulsing ? 'animate-pulse-fast' : ''}`}
+                                            >
+                                                ${liveTotal.toFixed(2)}
+                                            </div>
+
+                                            <div className="h-6 mb-5 flex items-center justify-center"><span className="text-sm font-medium text-indigo-300 animate-in fade-in slide-in-from-bottom-2 duration-500 key={motivation}">{motivation}</span></div>
+                                            
+                                            {/* FANCY PROGRESS BAR: Ghost Segment + Main Segment */}
+                                            <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden backdrop-blur-sm border border-white/5 mb-6 relative">
+                                                {/* Ghost/Potential Bar (Shows where you WILL be) */}
+                                                <div 
+                                                    className={`absolute top-0 left-0 h-full bg-emerald-500/30 transition-all duration-200 ease-out ${amount ? 'opacity-100' : 'opacity-0'}`} 
+                                                    style={{ width: `${livePercent}%` }} 
+                                                />
+                                                {/* Actual Base Bar (Confirmed Earnings) */}
+                                                <div 
+                                                    className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] ${remaining <= 0 ? 'bg-emerald-500 shadow-[0_0_20px_#10b981]' : isStretching ? 'bg-gradient-to-r from-purple-600 to-pink-500' : 'bg-gradient-to-r from-indigo-500 to-emerald-400'}`} 
+                                                    style={{ width: `${basePercent}%` }} 
+                                                />
+                                            </div>
+
+                                            <div className="w-full space-y-4 pt-2">
+                                                <div className="grid grid-cols-3 gap-2 text-center border-t border-white/5 pt-4">
+                                                    <div>
+                                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Goal</div>
+                                                        <div 
+                                                            onClick={() => handleQuickEditClick('goal', currentDailyGoal)}
+                                                            className="text-sm font-bold text-slate-300 cursor-pointer hover:text-white decoration-dotted underline underline-offset-4 decoration-slate-600"
+                                                        >
+                                                            ${currentDailyGoal.toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Total</div>
+                                                        <div 
+                                                            onClick={() => handleQuickEditClick('total', dailyTotal)}
+                                                            className="text-sm font-bold text-white cursor-pointer hover:text-indigo-300 decoration-dotted underline underline-offset-4 decoration-slate-600"
+                                                        >
+                                                            ${liveTotal.toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                    <div><div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Need</div><div className={`text-sm font-bold ${dailyNeed > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{dailyNeed > 0 ? `-$${dailyNeed.toFixed(2)}` : 'Done!'}</div></div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 text-center border-t border-white/5 pt-4">
+                                                    <div>
+                                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Week Total</div>
+                                                        <div 
+                                                            onClick={() => handleQuickEditClick('week', pastWeekTotal)}
+                                                            className="text-lg font-bold text-indigo-400 cursor-pointer hover:text-indigo-300 decoration-dotted underline underline-offset-4 decoration-indigo-500/30"
+                                                        >
+                                                            ${pastWeekTotal.toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                    <div><div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Projected Wk</div><div className="text-lg font-bold text-slate-200">${weeklyTotal.toFixed(2)}</div></div>
+                                                </div>
+                                                {showMilestones && (
+                                                    <div className="space-y-1.5 border-t border-white/5 pt-4">
+                                                        {milestones.sort((a,b)=>a-b).map(m => {
+                                                            const need = m - weeklyTotal;
+                                                            if (need <= 0) return null;
+                                                            return (<div key={m} className="flex justify-between items-center bg-black/20 px-3 py-1.5 rounded-lg"><span className="text-[10px] text-slate-400 font-bold uppercase">Need to ${m}</span><span className="text-xs font-mono font-bold text-purple-300">${need.toFixed(2)}</span></div>);
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {floatAnim && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-float pointer-events-none"><div className="text-4xl font-black text-emerald-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] whitespace-nowrap">+${floatAnim.amount.toFixed(2)}</div></div>}
+                                </div>
+                            </div>
+
+                            {/* RIGHT COLUMN: Today's Breakdown */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1 flex items-center gap-2"><History size={12} /> Today's Breakdown</h3>
+                                <div className="grid gap-3">
+                                    {activeApps.map(app => {
+                                        const appDeliveries = deliveries.filter(d => d.app === app.name && isToday(d.timestamp));
+                                        if (appDeliveries.length === 0) return null;
+                                        const appTotal = appDeliveries.reduce((acc, curr) => acc + curr.amount, 0);
+                                        return (
+                                            <div key={app.id} className="bg-[#181A20] rounded-xl border border-white/5 p-4 flex justify-between items-center shadow-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: `${app.color}33`, color: app.color }}>{getIcon(app.iconType, 18)}</div>
+                                                    <div className="flex flex-col"><span className="font-bold text-slate-200 text-lg">{app.name}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{appDeliveries.length} orders</span></div>
+                                                </div>
+                                                <span className="font-bold text-2xl text-white tracking-tight">${appTotal.toFixed(2)}</span>
+                                            </div>
+                                        )
+                                    })}
+                                    {dailyTotal > 0 && <button onClick={handleFinishShift} className="w-full mt-4 py-3 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-bold uppercase tracking-widest text-xs rounded-xl transition-all border border-white/5 flex items-center justify-center gap-2 group"><Flag size={14} className="group-hover:text-emerald-400 transition-colors" /> Finish Shift</button>}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- HISTORY TAB --- */}
+                {activeTab === 'history' && (
+                    <div className="px-4 space-y-6 max-w-md mx-auto animate-in fade-in slide-in-from-right-4 duration-300 pt-4 pb-24">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-bold">History</h2>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowManualAdd(true)} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 rounded-lg text-xs font-bold text-white hover:bg-indigo-500 transition-colors">
+                                    <CalendarPlus size={14} /> Add Past
+                                </button>
+                                <button onClick={handleExport} className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg text-xs font-bold text-slate-300 hover:bg-slate-700 transition-colors">
+                                    {copied ? <CheckCircle2 size={14} className="text-emerald-400"/> : <Copy size={14} />} {copied ? 'Copied' : 'Export'}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {Object.keys(historyByDate).length === 0 ? <div className="text-center py-20 text-slate-600">No runs recorded yet.</div> : 
+                            Object.entries(historyByDate).sort((a,b) => new Date(b[1].items[0].timestamp) - new Date(a[1].items[0].timestamp)).map(([dateLabel, group]) => (
+                                <div key={dateLabel} className="space-y-2">
+                                    <div className="flex justify-between items-end px-2">
+                                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{dateLabel}</h3>
+                                        <span className="text-sm font-bold text-emerald-400">${group.total.toFixed(2)}</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {group.items.map(d => {
+                                            const app = activeApps.find(a => a.name === d.app) || { color: '#64748b', iconType: 'bag' };
+                                            return (
+                                                <div key={d.id} className="bg-[#181A20] p-4 rounded-xl border border-white/5 flex items-center justify-between group">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: `${app.color}33`, color: app.color }}>{getIcon(app.iconType, 18)}</div>
+                                                        <div>
+                                                            <div className="font-bold text-sm text-white">{d.app}</div>
+                                                            <div className="text-xs text-slate-500">{new Date(d.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span className="font-bold text-emerald-400">+${d.amount.toFixed(2)}</span>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => setEditingItem(d)} className="p-1.5 text-slate-500 hover:text-indigo-400 hover:bg-white/5 rounded-lg transition-colors"><Pencil size={14}/></button>
+                                                            <button onClick={() => deleteDelivery(d.id)} className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"><Trash2 size={14}/></button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ))
+                        }
+                    </div>
+                )}
+
+                {/* --- SETTINGS TAB --- */}
+                {activeTab === 'settings' && (
+                    <div className="px-4 space-y-6 max-w-md mx-auto pt-4 pb-24">
+                        
+                        {/* 1. Daily Goals */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1 flex items-center gap-2"><Calendar size={12} /> Daily Schedule</h3>
+                            <div className="bg-[#181A20] rounded-2xl border border-white/5 overflow-hidden p-4 space-y-4">
+                                <div className="flex justify-between items-center"><span className="font-bold text-sm">Weekday</span><input type="number" value={goalConfig.daily.weekday} onChange={e => updateGoal('daily', 'weekday', e.target.value)} className="w-24 bg-[#0F1115] rounded-lg py-2 pl-4 text-right text-sm font-bold outline-none" /></div>
+                                <div className="flex justify-between items-center"><span className="font-bold text-sm">Weekend</span><input type="number" value={goalConfig.daily.saturday} onChange={e => updateGoal('daily', 'saturday', e.target.value)} className="w-24 bg-[#0F1115] rounded-lg py-2 pl-4 text-right text-sm font-bold outline-none" /></div>
+                            </div>
+                        </div>
+
+                        {/* 2. Macro Goals (RESTORED) */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1 flex items-center gap-2"><Trophy size={12} /> Macro Targets</h3>
+                            <div className="bg-[#181A20] rounded-2xl border border-white/5 overflow-hidden p-4 grid grid-cols-2 gap-4">
+                                <div><span className="text-[10px] uppercase font-bold text-slate-500">Weekly</span><input type="number" value={goalConfig.weekly} onChange={e => updateGoal('macro', 'weekly', e.target.value)} className="w-full bg-[#0F1115] rounded-lg py-2 px-3 mt-1 font-bold text-sm outline-none" /></div>
+                                <div><span className="text-[10px] uppercase font-bold text-slate-500">Monthly</span><input type="number" value={goalConfig.monthly} onChange={e => updateGoal('macro', 'monthly', e.target.value)} className="w-full bg-[#0F1115] rounded-lg py-2 px-3 mt-1 font-bold text-sm outline-none" /></div>
+                            </div>
+                        </div>
+
+                        {/* 3. App Management (RESTORED) */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1 flex items-center gap-2"><Settings size={12} /> App Management</h3>
+                            
+                            <form onSubmit={addCustomApp} className="flex gap-2 mb-2">
+                                <input type="text" placeholder="Add app..." value={newAppName} onChange={e => setNewAppName(e.target.value)} className="flex-1 bg-[#181A20] rounded-xl px-4 py-3 text-sm outline-none border border-white/5 focus:border-indigo-500" />
+                                <button type="submit" className="bg-indigo-600 px-4 rounded-xl"><Plus size={18} /></button>
+                            </form>
+
+                            <div className="bg-[#181A20] rounded-2xl border border-white/5 overflow-hidden">
+                                {myApps.map((app, idx) => (
+                                    <div key={app.id} className={`p-4 flex items-center justify-between ${idx !== myApps.length - 1 ? 'border-b border-white/5' : ''}`}>
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={() => toggleApp(app.id)}>{app.active ? <ToggleRight size={24} className="text-emerald-400" /> : <ToggleLeft size={24} className="text-slate-600" />}</button>
+                                            <span className={`font-bold text-sm ${app.active ? 'text-white' : 'text-slate-600'}`}>{app.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input type="color" value={app.color} onChange={e => updateAppColor(app.id, e.target.value)} className="w-6 h-6 rounded bg-transparent border-none" disabled={!app.active} />
+                                            {app.id.startsWith('custom-') && <button onClick={() => deleteApp(app.id)} className="text-slate-600 hover:text-red-400"><Trash2 size={16}/></button>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 4. Milestones */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1 flex items-center gap-2"><List size={12} /> Milestones</h3>
+                            <div className="bg-[#181A20] rounded-2xl border border-white/5 overflow-hidden p-4 space-y-2">
+                                <div className="flex justify-between items-center mb-2"><span className="text-sm font-bold">Show Ladder</span><button onClick={toggleMilestones}>{showMilestones ? <ToggleRight size={24} className="text-emerald-400"/> : <ToggleLeft size={24} className="text-slate-600"/>}</button></div>
+                                {showMilestones && milestones.map((m, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <input type="number" value={m} onChange={e => updateMilestone(idx, e.target.value)} className="flex-1 bg-[#0F1115] rounded-lg py-2 px-4 text-sm font-bold outline-none" />
+                                        <button onClick={() => {const newVals = milestones.filter((_, i) => i !== idx); setGoalConfig(prev => ({...prev, milestones: {...prev.milestones, values: newVals}}));}} className="text-slate-500"><X size={16}/></button>
+                                    </div>
+                                ))}
+                                {showMilestones && <button onClick={() => setGoalConfig(prev => ({...prev, milestones: {...prev.milestones, values: [...prev.milestones.values, 0]}}))} className="w-full py-2 bg-slate-800 rounded-lg text-xs font-bold mt-2"><Plus size={14} className="inline"/> Add Milestone</button>}
+                            </div>
+                        </div>                    </div>
+                )}
+
+                {/* Bottom Tab Bar */}
+                <div className="fixed bottom-0 left-0 right-0 bg-[#0F1115]/90 backdrop-blur-xl border-t border-white/5 pt-2 px-6 z-40 safe-area-bottom">
+                    <div className="max-w-md mx-auto flex items-center justify-between px-8">
+                        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 p-2 transition-colors ${activeTab === 'dashboard' ? 'text-indigo-500' : 'text-slate-500 hover:text-slate-300'}`}><Home size={24} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} /><span className="text-[10px] font-bold">Home</span></button>
+                        
+                        <div className="relative -top-5">
+                            <button onClick={() => handleNavAdd()} className="flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full shadow-lg shadow-indigo-500/40 hover:bg-indigo-500 transition-all transform active:scale-95 border-4 border-[#0F1115]">
+                                <Plus size={32} color="white" strokeWidth={3} />
+                            </button>
+                        </div>
+
+                        <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 p-2 transition-colors ${activeTab === 'history' ? 'text-indigo-500' : 'text-slate-500 hover:text-slate-300'}`}><History size={24} strokeWidth={activeTab === 'history' ? 2.5 : 2} /><span className="text-[10px] font-bold">History</span></button>
+                    </div>
+                </div>
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(GigHud));
+    </script>
+</body>
+</html>
